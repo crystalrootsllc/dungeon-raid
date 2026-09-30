@@ -96,16 +96,8 @@ transactions are sent in preview.
 
 ## Leaderboard
 
-Clears only. Score = (5000 + time bonus (6000 minus 100 per second, floor 0)
-+ 250 per timed guard - 15 per HP lost (shield included)) x difficulty
-multiplier. Separate Normal and Max tabs show rank, Friend #, score, time,
-damage, timed guards and a Shield tag.
+**LOCAL / session-only.** The FriendSDK sandbox blocks `localStorage`, so the in-game board keeps scores in memory for this preview session only and clears on reload. Nothing is uploaded. A signed shared top-100 is planned after the vibeathon submit (not built in this MVP).
 
-FriendSDK v0.1.2 has no storage or leaderboard API, and the opaque sandbox
-blocks `localStorage`. The board tries `localStorage` and falls back to memory.
-It is labelled **LOCAL**, and says "session only" when storage is blocked,
-which is always the case inside the SDK frame. Nothing is seeded and no other
-players are shown.
 
 ## Layout
 
