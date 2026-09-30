@@ -50,7 +50,7 @@ function tune(diff: Difficulty, broken: number) {
   };
 }
 
-type Popup = { x: number; y: number; text: string; color: string; life: number; big: boolean };
+type Popup = { x: number; y: number; text: string; color: string; life: number; scale: "sm" | "md" | "lg" };
 type Particle = { x: number; y: number; vx: number; vy: number; life: number; color: string };
 type Fight = {
   diff: Difficulty; bars: number; barHp: number; foeHp: number; foeMax: number;
@@ -358,6 +358,16 @@ function pixelLine(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: nu
     ctx.fillRect(x - cell / 2, y - cell / 2, cell, cell);
   }
 }
+/** Thick pixel beam (width in cells) from (x0,y0) to (x1,y1). */
+function pixelBeam(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, cell: number, widthCells: number) {
+  const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy) || 1;
+  const px = -dy / len * cell, py = dx / len * cell;
+  const half = (widthCells - 1) / 2;
+  for (let w = -half; w <= half; w++) {
+    const ox = px * w, oy = py * w;
+    pixelLine(ctx, x0 + ox, y0 + oy, x1 + ox, y1 + oy, cell);
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* 5x7 pixel font (damage numbers, banners, wordmark). No emoji.        */
@@ -422,9 +432,10 @@ function drawPixelText(ctx: CanvasRenderingContext2D, text: string, x: number, y
   [...text].forEach((ch, i) => glyph(ch).forEach((row, r) => [...row].forEach((c, cx) => {
     if (c === "#") px.push([left + (i * 6 + cx) * cell, top + r * cell, r]);
   })));
-  // paper halo then ink ring so numbers read on dark moth / stone
+  // paper halo then ink ring — thinner halo for small combat text
+  const pad = cell <= 2 ? 1 : 2;
   ctx.fillStyle = "#EEEEEE";
-  for (const [px0, py0] of px) ctx.fillRect(px0 - cell * 2, py0 - cell * 2, cell * 5, cell * 5);
+  for (const [px0, py0] of px) ctx.fillRect(px0 - cell * pad, py0 - cell * pad, cell * (1 + pad * 2), cell * (1 + pad * 2));
   if (o.shadow) { ctx.fillStyle = o.shadow; for (const [px0, py0] of px) ctx.fillRect(px0 - cell, py0, cell * 3, cell * 3); }
   ctx.fillStyle = "#111111";
   for (const [px0, py0] of px) ctx.fillRect(px0 - cell, py0 - cell, cell * 3, cell * 3);
@@ -780,7 +791,9 @@ export default function DungeonRaid({ friendId, client, paused }: GameComponentP
   }, []);
 
   const say = (f: Fight, text: string, kind = "info", t = 1.1) => { f.feedback = text; f.feedbackKind = kind; f.feedbackT = t; };
-  const popup = (f: Fight, x: number, y: number, text: string, color: string, big = false) => { f.popups.push({ x, y, text, color, life: big ? 1.1 : 0.9, big }); };
+  const popup = (f: Fight, x: number, y: number, text: string, color: string, scale: Popup["scale"] = "md") => {
+    f.popups.push({ x, y, text, color, life: scale === "lg" ? 1.0 : 0.85, scale });
+  };
   const burst = (f: Fight, x: number, y: number, color: string, n: number) => {
     for (let i = 0; i < n; i++) f.particles.push({ x, y, vx: (Math.random() - 0.5) * 2.4, vy: (Math.random() - 0.7) * 2.4, life: 0.35 + Math.random() * 0.35, color });
   };
@@ -901,13 +914,13 @@ export default function DungeonRaid({ friendId, client, paused }: GameComponentP
       if (f.cadence === "open") {
         const dmg = ATTACK_DMG * BEAM_MULT;
         hitFoe(f, dmg);
-        burst(f, L.bx, L.by + 8 * L.bs, "#CCFF00", 28);
-        burst(f, L.bx, L.by + 8 * L.bs, "#EEEEEE", 14);
-        popup(f, L.bx, L.by - 36, `-${dmg}`, "#CCFF00", true);
-        f.beamFx = 0.42;
-        f.foeFlash = 0.28;
-        f.hitStop = Math.max(f.hitStop, 0.2);
-        f.shake = reducedRef.current ? 0 : 18;
+        burst(f, L.bx, L.by + 4 * L.bs, "#CCFF00", 36);
+        burst(f, L.bx, L.by + 4 * L.bs, "#EEEEEE", 18);
+        popup(f, L.bx + 18, L.by - 18, `-${dmg}`, "#CCFF00", "md");
+        f.beamFx = 0.4;
+        f.foeFlash = 0.32;
+        f.hitStop = Math.max(f.hitStop, 0.16);
+        f.shake = reducedRef.current ? 0 : 14;
         sound.current?.play("reveal-rare");
         if (f.live) say(f, `Rare Beam! ${BEAM_MULT}x damage`, "good", 1.1);
       } else {
@@ -969,15 +982,16 @@ export default function DungeonRaid({ friendId, client, paused }: GameComponentP
       canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
       // Narrow phones use the stacked layout even when Safari's toolbars make the arena short.
       const portrait = w < 560 || h > w * 0.85;
-      const ps = Math.round(clamp(Math.min(w, h) * (portrait ? 0.27 : 0.34), 64, 150));
+      // Character Spotlight: Friend reads large next to the moth
+      const ps = Math.round(clamp(Math.min(w, h) * (portrait ? 0.34 : 0.40), 72, 168));
       if (portrait) {
-        const bs = Math.min((w * 0.84) / 116, (h * 0.64) / 80);
-        const mothH = 77.3 * bs; // 32 art rows at 116*bs/48 per cell
-        const by = Math.min(h * 0.52, Math.max(h * 0.36, 54 + mothH / 2)); // keep antennae clear of the banner
-        layout.current = { w, h, bx: w * (h > w * 1.05 ? 0.5 : 0.56), by, bs, px: w * 0.19, py: h - ps * 0.62, ps };
+        const bs = Math.min((w * 0.78) / 116, (h * 0.58) / 80);
+        const mothH = 77.3 * bs;
+        const by = Math.min(h * 0.50, Math.max(h * 0.34, 54 + mothH / 2));
+        layout.current = { w, h, bx: w * (h > w * 1.05 ? 0.58 : 0.62), by, bs, px: w * 0.22, py: h - ps * 0.58, ps };
       } else {
-        const bs = Math.min((w * 0.5) / 116, (h * 0.62) / 80);
-        layout.current = { w, h, bx: w * 0.62, by: h * (h < 260 ? 0.56 : 0.46), bs: h < 260 ? Math.min((w * 0.5) / 116, (h * 0.78) / 80) : bs, px: w * 0.17, py: h - ps * 0.62, ps };
+        const bs = Math.min((w * 0.46) / 116, (h * 0.58) / 80);
+        layout.current = { w, h, bx: w * 0.64, by: h * (h < 260 ? 0.56 : 0.46), bs: h < 260 ? Math.min((w * 0.46) / 116, (h * 0.72) / 80) : bs, px: w * 0.18, py: h - ps * 0.58, ps };
       }
     };
     resize();
@@ -1007,7 +1021,7 @@ export default function DungeonRaid({ friendId, client, paused }: GameComponentP
           f.lastImpact = f.elapsed;
           f.strikeFx = 0.22; f.strikeBlocked = f.guard === "timed";
           if (f.guard === "timed") {
-            popup(f, L.px + L.ps * 0.6, L.py - L.ps * 0.7, "BLOCK", "#7DB4DB");
+            popup(f, L.px + L.ps * 0.55, L.py - L.ps * 0.75, "BLOCK", "#7DB4DB", "sm");
             sound.current?.play("action-ready");
           } else if (f.guard === "early") {
             hurtPlayer(f, t.early);
@@ -1073,23 +1087,42 @@ export default function DungeonRaid({ friendId, client, paused }: GameComponentP
           ctx.globalAlpha = 1;
         }
         const bossMode = !f.live && f.foeHp <= 0 ? "defeat" : !f.live ? "idle" : f.cadence;
-        // Rare Beam: brief zoom into the weak spot + white core flash (lime reserved for the number)
-        const zoom = f.beamFx > 0 && !reducedRef.current ? 1 + Math.min(0.18, f.beamFx * 0.55) : 1;
-        if (zoom !== 1) { ctx.save(); ctx.translate(L.bx, L.by); ctx.scale(zoom, zoom); ctx.translate(-L.bx, -L.by); }
-        drawBoss(ctx, L.bx, L.by, L.bs, f.wing, { flash: Math.max(f.foeFlash, f.beamFx > 0.28 ? 0.2 : 0), reduced: reducedRef.current, mode: bossMode, openPulse: f.elapsed });
+        const cellB = cellSize(116 * L.bs);
+        const coreX = L.bx, coreY = L.by + 2 * cellB;
+        // Rare Beam: thick lime beam Friend → moth core (drawn under the moth flash)
         if (f.beamFx > 0) {
-          const cellB = cellSize(116 * L.bs);
-          const pulse = f.beamFx > 0.3 ? 0.9 : f.beamFx > 0.18 ? 0.55 : f.beamFx * 2;
-          ctx.globalAlpha = pulse;
-          ctx.fillStyle = "#EEEEEE";
-          // weak-spot flash: paper square on the moth core
-          const cw = 10 * cellB, ch = 8 * cellB;
-          ctx.fillRect(Math.round(L.bx - cw / 2), Math.round(L.by + 2 * cellB - ch / 2), Math.round(cw), Math.round(ch));
+          const fade = clamp(f.beamFx / 0.4, 0, 1);
+          ctx.globalAlpha = 0.35 + 0.65 * fade;
+          const fromX = L.px + L.ps * 0.4, fromY = L.py - L.ps * 0.15;
+          ctx.fillStyle = "#111111";
+          pixelBeam(ctx, fromX, fromY, coreX, coreY, cellB, 7);
           ctx.fillStyle = "#CCFF00";
-          ctx.fillRect(Math.round(L.bx - cw / 4), Math.round(L.by + 2 * cellB - ch / 4), Math.round(cw / 2), Math.round(ch / 2));
+          pixelBeam(ctx, fromX, fromY, coreX, coreY, cellB, 5);
+          ctx.fillStyle = "#EEEEEE";
+          pixelBeam(ctx, fromX, fromY, coreX, coreY, cellB, 2);
           ctx.globalAlpha = 1;
         }
-        if (zoom !== 1) ctx.restore();
+        drawBoss(ctx, L.bx, L.by, L.bs, f.wing, { flash: Math.max(f.foeFlash, f.beamFx > 0.2 ? 0.35 : 0), reduced: reducedRef.current, mode: bossMode, openPulse: f.elapsed });
+        if (f.beamFx > 0) {
+          const pulse = f.beamFx > 0.28 ? 1 : f.beamFx > 0.14 ? 0.7 : f.beamFx * 3;
+          ctx.globalAlpha = pulse;
+          // impact burst on weak spot
+          ctx.fillStyle = "#EEEEEE";
+          const r0 = 7 * cellB;
+          for (let i = 0; i < 12; i++) {
+            const a = (i / 12) * Math.PI * 2 + f.clock * 4;
+            const rr = r0 * (0.55 + 0.45 * (i % 3) / 2);
+            ctx.fillRect(Math.round((coreX + Math.cos(a) * rr) / cellB) * cellB - cellB, Math.round((coreY + Math.sin(a) * rr) / cellB) * cellB - cellB, cellB * 2, cellB * 2);
+          }
+          ctx.fillStyle = "#CCFF00";
+          const cw = 8 * cellB, ch = 6 * cellB;
+          ctx.fillRect(Math.round(coreX - cw / 2), Math.round(coreY - ch / 2), Math.round(cw), Math.round(ch));
+          ctx.fillStyle = "#EEEEEE";
+          ctx.fillRect(Math.round(coreX - cw / 4), Math.round(coreY - ch / 4), Math.round(cw / 2), Math.round(ch / 2));
+          ctx.globalAlpha = 1;
+          // small RARE BEAM tag near impact (not a screen-filling word)
+          drawPixelText(ctx, "RARE BEAM", coreX, coreY - 12 * cellB, 2, "#CCFF00");
+        }
         // player
         const sprite = spriteRef.current;
         const pl = L.px - L.ps / 2, pt = L.py - L.ps / 2;
@@ -1120,20 +1153,20 @@ export default function DungeonRaid({ friendId, client, paused }: GameComponentP
         }
         for (const p of f.particles) { ctx.globalAlpha = clamp(p.life * 2.5, 0, 1); ctx.fillStyle = p.color; ctx.fillRect(Math.round(p.x / pc) * pc, Math.round(p.y / pc) * pc, pc, pc); }
         ctx.globalAlpha = 1;
-        // damage numbers: pixel font, ink outline, snapped to the grid
-        const tc = Math.round(clamp(w / 110, 3, 6));
+        // floating combat text: compact pixel font (sm/md/lg), ink+paper outline
+        const tc = Math.round(clamp(w / 170, 2, 4));
+        const scaleCell = { sm: Math.max(2, tc - 1), md: tc, lg: Math.min(5, tc + 1) } as const;
         for (const p of f.popups) {
-          if (p.life < 0.12 && Math.floor(p.life * 40) % 2) continue; // blink out
-          const c = p.big ? Math.max(tc + 3, 7) : tc;
+          if (p.life < 0.1 && Math.floor(p.life * 40) % 2) continue;
+          const c = scaleCell[p.scale];
           const x = clamp(p.x, textCells(p.text) * c / 2 + c * 2, w - textCells(p.text) * c / 2 - c * 2);
           drawPixelText(ctx, p.text, x, p.y - 7 * c, c, p.color);
-          if (p.big) drawPixelText(ctx, "RARE BEAM", x, p.y - 7 * c - 10 * tc, Math.max(tc, 4), "#111111");
         }
-        // bar break: two stepped paper flashes and a BREAK callout
+        // bar break: brief flash + compact callout
         if (f.breakFx > 0) {
-          const step = f.breakFx > 0.34 ? 0.55 : f.breakFx > 0.26 ? 0 : f.breakFx > 0.18 ? 0.3 : 0;
+          const step = f.breakFx > 0.34 ? 0.4 : f.breakFx > 0.26 ? 0 : f.breakFx > 0.18 ? 0.22 : 0;
           if (step && !reducedRef.current) { ctx.globalAlpha = step; ctx.fillStyle = "#EEEEEE"; ctx.fillRect(-cell * 3, -cell * 3, w + cell * 6, h + cell * 6); ctx.globalAlpha = 1; }
-          if (f.live) drawPixelText(ctx, "BAR BROKEN", w / 2, L.by + (77.3 * L.bs) / 2 - tc * 4, tc, "#F2CE68");
+          if (f.live) drawPixelText(ctx, "BAR BROKEN", w / 2, L.by + (77.3 * L.bs) / 2 - tc * 3, Math.max(2, tc), "#F2CE68");
         }
       }
       ctx.restore();
@@ -1340,12 +1373,16 @@ export default function DungeonRaid({ friendId, client, paused }: GameComponentP
         <div className="nr-screen nr-title">
           <div className="nr-hero nr-card">
             <TitleScene reduced={reduced} />
-            <div className="nr-hero-friend"><FriendCanvas friendId={friendId} reduced={reduced} size={56} /></div>
+            <div className="nr-hero-friend" aria-label={`Your Friend #${friendId.toString()}`}>
+              <span className="nr-hero-friend-tag">Your Friend</span>
+              <FriendCanvas friendId={friendId} reduced={reduced} size={72} />
+              <span className="nr-hero-friend-id">#{friendId.toString()}</span>
+            </div>
           </div>
           <div className="nr-title-side">
           <h1 className="nr-sr">Dungeon Raid</h1>
-          <p className="nr-sub">Friend #{friendId.toString()} vs {BOSS}</p>
-          <p className="nr-pitch">Timed Guard charges Rare Beam. Clear Normal or Max.</p>
+          <p className="nr-sub">Your Generations Friend raids the dungeon vs {BOSS}</p>
+          <p className="nr-pitch">Play as your Rare Friend. Timed Guard charges Rare Beam. Clear Normal or Max.</p>
           <div className="nr-modes" role="group" aria-label="Start a raid">
             {(["normal", "max"] as const).map(d => (
               <button key={d} type="button" className={`nr-mode${d === "normal" ? " nr-cta" : ""}`} disabled={paused || busy}
@@ -1412,7 +1449,7 @@ export default function DungeonRaid({ friendId, client, paused }: GameComponentP
             <p className="nr-kicker">{DIFF[result.diff].label}{result.shield ? " with Shield" : ""} · Friend #{friendId.toString()}</p>
             <h2 className="nr-end-title">{result.won ? "Victory" : "Defeated"}</h2>
             <p className="nr-end-sub">{result.won ? "Dungeon cleared. The Shade Moth falls." : "Your Friend was downed in the dungeon."}</p>
-            <p className="nr-pitch">Timed Guard charges Rare Beam. Clear Normal or Max.</p>
+            <p className="nr-pitch">Play as your Rare Friend. Timed Guard charges Rare Beam. Clear Normal or Max.</p>
             {result.won && result.score ? (
               <>
                 <p className="nr-bigscore" aria-label={`Score ${result.score.total}`}>{result.score.total.toLocaleString("en-US")}</p>
