@@ -1,0 +1,9 @@
+{
+  "name": "Dungeon Raid",
+  "description": "Your Rare Friend raids a pixel dungeon to defeat the Shade Moth: attack on OPEN, time your guards on INCOMING, unleash Rare Beam.",
+  "consumable": "Shield Bar",
+  "price": "5000000000000000000",
+  "outcomes": [
+    { "name": "Moth Scale", "chanceBps": 10000, "reward": "1000000000000000000" }
+  ]
+}

@@ -1,0 +1,105 @@
+/* Dungeon Raid — trusted runtime frame layout (loaded by the FriendSDK CLI).
+   The SDK toolbar (Local preview / Friend / Friend wallet) normally floats over
+   the bottom of the game. Here it becomes its own strip under the game so it can
+   never cover the Attack / Guard / Rare Beam buttons, on desktop or phone. */
+:root {
+  --rf-game-max-width: 960px;
+  --rf-game-aspect-ratio: 3 / 2;
+  --paper: #eeeeee;
+  --ink: #111111;
+  --signal: #CCFF00;
+}
+
+.rf-game-frame {
+  max-height: 100vh;
+  max-height: 100svh;
+  border: 3px solid #111111;
+  background: #eeeeee;
+}
+
+.rf-game-frame .rf-frame-chrome {
+  display: flex;
+  flex-direction: column;
+}
+
+.rf-game-frame .rf-frame-viewport {
+  order: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.rf-game-frame .rf-frame-toolbar {
+  position: relative;
+  order: 2;
+  flex: none;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #eeeeee;
+  border-top: 3px solid #111111;
+  font-size: 11px;
+}
+
+.rf-game-frame .rf-frame-toolbar > * {
+  border: 2px solid #111111;
+  background: #eeeeee;
+  padding: 4px 8px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rf-game-frame .rf-frame-toolbar button {
+  min-height: 30px;
+  padding: 4px 8px;
+  box-shadow: 2px 2px 0 #111111;
+}
+
+/* Phone portrait and short landscape: fill the screen instead of a 3:2 letterbox. */
+@media (max-width: 600px), (max-height: 560px) {
+  .rf-game-frame {
+    aspect-ratio: auto;
+    height: 100vh;
+    height: 100svh;
+  }
+}
+
+@media (max-width: 520px) {
+  .rf-game-frame .rf-frame-toolbar {
+    left: auto;
+    right: auto;
+    bottom: auto;
+    gap: 6px;
+    padding: 5px 6px;
+    font-size: 10px;
+  }
+  .rf-game-frame .rf-frame-mode { font-size: 10px; }
+  .rf-game-frame .rf-frame-toolbar > * { padding: 3px 6px; min-height: 28px; }
+}
+
+/* Confirm / primary CTAs: ink on signal lime (never white-on-light). */
+.rf-game-frame .rf-frame-primary,
+.rf-frame-scrim .rf-frame-primary,
+.rf-game-frame .rf-frame-menu-footer .rf-frame-primary,
+.rf-frame-scrim .rf-frame-menu-footer .rf-frame-primary {
+  background: #CCFF00 !important;
+  color: #111111 !important;
+  border: 2px solid #111111 !important;
+  box-shadow: 4px 4px 0 #111111;
+}
+.rf-game-frame button,
+.rf-frame-scrim button {
+  color: #111111 !important;
+}
+.rf-game-frame .rf-frame-menu,
+.rf-frame-scrim .rf-frame-menu {
+  background: #eeeeee;
+  border: 3px solid #111111;
+  box-shadow: 6px 6px 0 #111111;
+  color: #111111;
+}
